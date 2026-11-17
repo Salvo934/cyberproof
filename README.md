@@ -26,6 +26,21 @@ npm run dev
 ```
 Apri http://localhost:3000, registrati e, a registro vuoto, usa **Carica dati demo** per i 10 controlli di esempio.
 
+## Pubblicazione su Cloudflare Workers
+
+L'app è adattata a Cloudflare Workers con [OpenNext](https://opennext.js.org/cloudflare). Configurazione in `wrangler.jsonc` e `open-next.config.ts`.
+
+```bash
+npx wrangler login      # una sola volta
+npm run cf:preview      # prova locale nel runtime Workers
+npm run cf:deploy       # build + pubblicazione
+```
+
+Le variabili `NEXT_PUBLIC_*` vengono incluse al momento della build: `.env.local` deve essere presente quando si esegue `cf:deploy`.
+Dopo la pubblicazione aggiungi l'indirizzo del Worker in Supabase (**Authentication → URL Configuration**): come Site URL e, nei Redirect URLs, `https://<worker>.workers.dev/auth/callback`.
+
+Note: Cache Components di Next.js è disattivato perché non ancora supportato da OpenNext; `keep_names: false` evita un errore negli script inline del tema.
+
 ## Sicurezza
 
 - **Row Level Security** su tutte le tabelle: ogni utente legge e modifica solo i dati della propria organizzazione (un'organizzazione per account, creata alla registrazione).
@@ -36,7 +51,7 @@ Apri http://localhost:3000, registrati e, a registro vuoto, usa **Carica dati de
 
 ## Stack
 
-Next.js (App Router) · TypeScript · Tailwind CSS · shadcn/ui · Lucide · Recharts · jsPDF · Supabase (Postgres, Auth, Storage).
+Next.js (App Router) · TypeScript · Tailwind CSS · shadcn/ui · Lucide · Recharts · jsPDF · Supabase (Postgres, Auth, Storage) · Cloudflare Workers (OpenNext).
 
 ## Struttura
 

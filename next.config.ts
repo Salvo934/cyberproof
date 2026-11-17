@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Cache Components / Partial Prerendering disattivati: l'app legge i dati nel
+  // browser da Supabase e non ne trae vantaggio, mentre l'adapter OpenNext per
+  // Cloudflare Workers non li supporta ancora (le pagine restano in attesa).
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {

@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cyberproof",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "upload_source_maps": true,
+  // Evita che il bundler inietti "__name(...)" nelle funzioni serializzate negli
+  // script inline (es. lo script del tema di next-themes), che nel browser non esiste.
+  "keep_names": false,
+  "observability": {
+    "enabled": true
+  }
+}

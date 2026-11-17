@@ -20,6 +20,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/setup", request.url));
   }
 
+  // Con la configurazione presente la pagina di istruzioni non serve.
+  if (request.nextUrl.pathname === "/setup") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(url, key, {
