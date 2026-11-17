@@ -1,5 +1,4 @@
 import type {
-  AppData,
   ControlCategory,
   ControlStatus,
   ImplementationStatus,
@@ -23,10 +22,6 @@ export interface ControlInput {
 export type ControlFieldErrors = Partial<Record<keyof ControlInput, string>>;
 
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9-]{1,23}$/;
-
-export function newId(prefix: string): string {
-  return `${prefix}_${crypto.randomUUID()}`;
-}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -82,37 +77,6 @@ export function validateControlInput(
   return errors;
 }
 
-export function createControl(data: AppData, input: ControlInput): { data: AppData; control: SecurityControl } {
-  const now = new Date().toISOString();
-  const control: SecurityControl = { ...input, id: newId("ctrl"), createdAt: now, updatedAt: now };
-  return { data: { ...data, controls: [...data.controls, control] }, control };
-}
-
-export function updateControl(data: AppData, id: string, input: ControlInput): AppData {
-  const now = new Date().toISOString();
-  return {
-    ...data,
-    controls: data.controls.map((c) => (c.id === id ? { ...c, ...input, updatedAt: now } : c)),
-  };
-}
-
-export function updateControlStatus(data: AppData, id: string, status: ControlStatus): AppData {
-  const now = new Date().toISOString();
-  return {
-    ...data,
-    controls: data.controls.map((c) => (c.id === id ? { ...c, status, updatedAt: now } : c)),
-  };
-}
-
-/** Elimina il controllo e le evidenze collegate, per non lasciare dati orfani. */
-export function deleteControl(data: AppData, id: string): AppData {
-  return {
-    ...data,
-    controls: data.controls.filter((c) => c.id !== id),
-    evidences: data.evidences.filter((e) => e.controlId !== id),
-  };
-}
-
 export function controlToInput(control: SecurityControl): ControlInput {
   return {
     code: control.code,
@@ -139,14 +103,27 @@ export const EMPTY_CONTROL_INPUT: ControlInput = {
   lastVerifiedAt: null,
 };
 
-/** Suggerisce il prossimo codice libero, es. "CP-CTL-11". */
-export function suggestControlCode(existing: SecurityControl[]): string {
+/** Prefisso del codice per categoria, coerente con i controlli dimostrativi. */
+export const CATEGORY_CODE_PREFIX: Record<ControlCategory, string> = {
+  governance: "GOV",
+  gestione_accessi: "ACC",
+  backup_continuita: "BCK",
+  logging_monitoraggio: "LOG",
+  gestione_incidenti: "INC",
+  gestione_vulnerabilita: "VUL",
+  formazione: "FOR",
+  fornitori: "SUP",
+  crittografia: "CRY",
+};
+
+/**
+ * Suggerisce il primo codice libero, es. "CP-BCK-02" per una categoria
+ * oppure "CP-CTL-11" se la categoria non è indicata.
+ */
+export function suggestControlCode(existing: SecurityControl[], category?: ControlCategory): string {
+  const prefix = `CP-${category ? CATEGORY_CODE_PREFIX[category] : "CTL"}-`;
   const codes = new Set(existing.map((c) => c.code));
-  let n = existing.length + 1;
-  let code = `CP-CTL-${String(n).padStart(2, "0")}`;
-  while (codes.has(code)) {
-    n += 1;
-    code = `CP-CTL-${String(n).padStart(2, "0")}`;
-  }
-  return code;
+  let n = 1;
+  while (codes.has(`${prefix}${String(n).padStart(2, "0")}`)) n += 1;
+  return `${prefix}${String(n).padStart(2, "0")}`;
 }

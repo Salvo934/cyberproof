@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { FormField, fieldAria } from "@/components/common/form-field";
@@ -19,10 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   EMPTY_CONTROL_INPUT,
   controlToInput,
-  createControl,
   normalizeControlInput,
   suggestControlCode,
-  updateControl,
   validateControlInput,
   type ControlFieldErrors,
   type ControlInput,
@@ -36,7 +35,10 @@ import {
   IMPLEMENTATION_STATUSES,
 } from "@/lib/models/labels";
 import type { AppData, SecurityControl } from "@/lib/models/types";
-import { updateAppData } from "@/lib/store/app-store";
+import { RepositoryError } from "@/lib/persistence/supabase-repository";
+import { actionErrorMessage, appActions } from "@/lib/store/app-store";
+import type { ControlTemplate } from "@/lib/data/control-catalog";
+import { ControlNameCombobox } from "./control-name-combobox";
 import { RegulatoryReferencesEditor } from "./regulatory-references-editor";
 
 interface ControlFormDialogProps {
@@ -65,13 +67,42 @@ function ControlForm({ onOpenChange, data, control, onCreated }: ControlFormDial
     control ? controlToInput(control) : { ...EMPTY_CONTROL_INPUT, code: suggestControlCode(data.controls) },
   );
   const [errors, setErrors] = useState<ControlFieldErrors>({});
+  const [pending, setPending] = useState(false);
+  // Il codice proposto si aggiorna con la categoria finché l'utente non lo modifica a mano.
+  const [codeTouched, setCodeTouched] = useState(isEdit);
+  const [prefilledFrom, setPrefilledFrom] = useState<string | null>(null);
+
+  const applyTemplate = (template: ControlTemplate) => {
+    setValues((v) => {
+      const refKey = (r: { source: string; article: string }) => `${r.source}|${r.article}`;
+      const known = new Set(v.regulatoryReferences.map(refKey));
+      return {
+        ...v,
+        name: template.name,
+        category: template.category,
+        description: v.description.trim() ? v.description : template.description,
+        regulatoryReferences: [
+          ...v.regulatoryReferences,
+          ...template.regulatoryReferences.filter((r) => !known.has(refKey(r))).map((r) => ({ ...r })),
+        ],
+        code: codeTouched
+          ? v.code
+          : suggestControlCode(
+              data.controls.filter((c) => c.id !== control?.id),
+              template.category,
+            ),
+      };
+    });
+    setErrors((e) => ({ ...e, name: undefined, code: undefined }));
+    setPrefilledFrom(template.name);
+  };
 
   const set = <K extends keyof ControlInput>(key: K, value: ControlInput[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const input = normalizeControlInput(values);
     const validation = validateControlInput(input, data.controls, control?.id);
@@ -80,20 +111,26 @@ function ControlForm({ onOpenChange, data, control, onCreated }: ControlFormDial
       return;
     }
 
-    if (control) {
-      updateAppData((d) => updateControl(d, control.id, input));
-      toast.success("Controllo aggiornato");
-    } else {
-      let created: SecurityControl | undefined;
-      updateAppData((d) => {
-        const result = createControl(d, input);
-        created = result.control;
-        return result.data;
-      });
-      toast.success("Controllo aggiunto al registro");
-      if (created) onCreated?.(created);
+    setPending(true);
+    try {
+      if (control) {
+        await appActions.updateControl(control.id, input);
+        toast.success("Controllo aggiornato");
+      } else {
+        const created = await appActions.createControl(input);
+        toast.success("Controllo aggiunto al registro");
+        onCreated?.(created);
+      }
+      onOpenChange(false);
+    } catch (error) {
+      if (error instanceof RepositoryError && error.field === "code") {
+        setErrors({ code: error.message });
+      } else {
+        toast.error(actionErrorMessage(error));
+      }
+    } finally {
+      setPending(false);
     }
-    onOpenChange(false);
   };
 
   return (
@@ -112,14 +149,34 @@ function ControlForm({ onOpenChange, data, control, onCreated }: ControlFormDial
             {...fieldAria("code", errors.code)}
             className="font-mono uppercase"
             value={values.code}
-            onChange={(e) => set("code", e.target.value)}
+            onChange={(e) => {
+              setCodeTouched(true);
+              set("code", e.target.value);
+            }}
             autoComplete="off"
           />
         </FormField>
         <FormField id="name" label="Nome" required error={errors.name}>
-          <Input {...fieldAria("name", errors.name)} value={values.name} onChange={(e) => set("name", e.target.value)} />
+          <ControlNameCombobox
+            id="name"
+            value={values.name}
+            onChange={(name) => {
+              set("name", name);
+              setPrefilledFrom(null);
+            }}
+            onSelectTemplate={applyTemplate}
+            existingNames={data.controls.filter((c) => c.id !== control?.id).map((c) => c.name)}
+            invalid={Boolean(errors.name)}
+            describedBy={errors.name ? "name-error" : undefined}
+          />
         </FormField>
       </div>
+      {prefilledFrom && (
+        <p className="-mt-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground" role="status">
+          Categoria, descrizione e riferimenti normativi sono stati proposti dal suggerimento: verificali e
+          adattali alla tua organizzazione. I riferimenti sono indicativi.
+        </p>
+      )}
 
       <FormField id="description" label="Descrizione" error={errors.description}>
         <Textarea
@@ -132,7 +189,14 @@ function ControlForm({ onOpenChange, data, control, onCreated }: ControlFormDial
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField id="category" label="Categoria" required>
-          <Select value={values.category} onValueChange={(v) => set("category", v as ControlInput["category"])}>
+          <Select
+            value={values.category}
+            onValueChange={(v) => {
+              const category = v as ControlInput["category"];
+              set("category", category);
+              if (!codeTouched) set("code", suggestControlCode(data.controls, category));
+            }}
+          >
             <SelectTrigger id="category" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -215,10 +279,13 @@ function ControlForm({ onOpenChange, data, control, onCreated }: ControlFormDial
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
           Annulla
         </Button>
-        <Button type="submit">{isEdit ? "Salva modifiche" : "Aggiungi controllo"}</Button>
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2 className="animate-spin" aria-hidden />}
+          {isEdit ? "Salva modifiche" : "Aggiungi controllo"}
+        </Button>
       </DialogFooter>
     </form>
   );

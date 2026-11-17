@@ -1,5 +1,4 @@
-import type { AppData, Evidence, EvidenceDocumentType } from "@/lib/models/types";
-import { newId } from "./controls";
+import type { Evidence, EvidenceDocumentType } from "@/lib/models/types";
 
 /** Dati modificabili di un'evidenza (id, controllo e timestamp gestiti dall'app). */
 export interface EvidenceInput {
@@ -89,41 +88,6 @@ export function validateEvidenceInput(input: EvidenceInput): EvidenceFieldErrors
     errors.referenceLocation = "Il collegamento non deve contenere credenziali.";
 
   return errors;
-}
-
-function toEvidenceFields(input: EvidenceInput): Omit<Evidence, "id" | "controlId" | "createdAt" | "updatedAt"> {
-  const { referenceLocation, ...rest } = input;
-  return {
-    ...rest,
-    reference: referenceLocation ? { kind: "riferimento_esterno", location: referenceLocation } : null,
-  };
-}
-
-export function createEvidence(data: AppData, controlId: string, input: EvidenceInput): AppData {
-  if (!data.controls.some((c) => c.id === controlId)) {
-    throw new Error(`Controllo inesistente: ${controlId}`);
-  }
-  const now = new Date().toISOString();
-  const evidence: Evidence = {
-    ...toEvidenceFields(input),
-    id: newId("evd"),
-    controlId,
-    createdAt: now,
-    updatedAt: now,
-  };
-  return { ...data, evidences: [...data.evidences, evidence] };
-}
-
-export function updateEvidence(data: AppData, id: string, input: EvidenceInput): AppData {
-  const now = new Date().toISOString();
-  return {
-    ...data,
-    evidences: data.evidences.map((e) => (e.id === id ? { ...e, ...toEvidenceFields(input), updatedAt: now } : e)),
-  };
-}
-
-export function deleteEvidence(data: AppData, id: string): AppData {
-  return { ...data, evidences: data.evidences.filter((e) => e.id !== id) };
 }
 
 /** Evidenze ordinate dalla più recente alla meno recente. */

@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/common/empty-state";
+import { LoadDemoButton } from "@/components/common/load-demo-button";
 import { LoadingBlock } from "@/components/common/loading-block";
 import { StatusBadge } from "@/components/common/tone-badge";
 import { Button } from "@/components/ui/button";
@@ -199,11 +200,14 @@ export function ControlsTable() {
         <EmptyState
           icon={Plus}
           title="Il registro è vuoto"
-          description="Aggiungi il primo controllo di sicurezza per iniziare a documentarlo."
+          description="Aggiungi il primo controllo di sicurezza, oppure carica 10 controlli di esempio per esplorare l'applicazione."
         >
-          <Button size="sm" onClick={openCreate}>
-            <Plus aria-hidden /> Nuovo controllo
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button size="sm" onClick={openCreate}>
+              <Plus aria-hidden /> Nuovo controllo
+            </Button>
+            <LoadDemoButton />
+          </div>
         </EmptyState>
       ) : rows.length === 0 ? (
         <EmptyState

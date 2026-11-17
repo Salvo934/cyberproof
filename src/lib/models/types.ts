@@ -66,8 +66,6 @@ export interface Organization {
   sector: string;
   /** Classificazione NIS2 dichiarata: l'app non la determina. */
   nis2Classification: NIS2EntityClassification;
-  /** Indica che l'organizzazione è fittizia (dati dimostrativi). */
-  isDemo: boolean;
 }
 
 export interface SecurityControl {
@@ -99,12 +97,8 @@ export type EvidenceDocumentType =
   | "altro";
 
 /**
- * Collegamento al documento di evidenza.
- *
- * Nell'MVP è ammesso solo un riferimento testuale a dove il documento è
- * conservato (es. percorso su repository documentale). Nessun file viene
- * salvato nel browser. Una futura variante `{ kind: "supabase_storage" }`
- * rappresenterà un file effettivamente archiviato in modo sicuro.
+ * Riferimento testuale al luogo in cui l'organizzazione conserva il documento
+ * (es. percorso su repository documentale), alternativo o complementare al file.
  */
 export interface EvidenceLocationReference {
   kind: "riferimento_esterno";
@@ -121,13 +115,26 @@ export interface Evidence {
   owner: string;
   notes: string;
   reference: EvidenceLocationReference | null;
+  /** File archiviato nel bucket privato; `null` se l'evidenza è solo un riferimento. */
+  file: StoredEvidenceFile | null;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
 
-/** Stato complessivo persistito dell'applicazione. */
+/** Metadati di un documento archiviato in modo sicuro (Supabase Storage). */
+export interface StoredEvidenceFile {
+  /** Percorso nel bucket: `{organizationId}/{controlId}/{evidenceId}/{nomeFile}`. */
+  path: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  /** Impronta SHA-256 calcolata al caricamento, per verificarne l'integrità. */
+  sha256: string;
+  uploadedAt: ISODateTime;
+}
+
+/** Dati dell'organizzazione dell'utente, caricati dal database. */
 export interface AppData {
-  schemaVersion: 1;
   organization: Organization;
   controls: SecurityControl[];
   evidences: Evidence[];

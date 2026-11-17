@@ -1,19 +1,10 @@
 "use client";
 
-import { Monitor, Moon, RotateCcw, Settings2, Sun } from "lucide-react";
+import { Building2, LogOut, Monitor, Moon, Settings2, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,11 +16,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { resetToDemoData } from "@/lib/store/app-store";
+import { actionErrorMessage, appActions, useAppData } from "@/lib/store/app-store";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { OrganizationDialog } from "./organization-dialog";
+
+function useUserEmail(): string | null {
+  const [email, setEmail] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    getSupabaseBrowserClient()
+      .auth.getUser()
+      .then(({ data }) => active && setEmail(data.user?.email ?? null));
+    return () => {
+      active = false;
+    };
+  }, []);
+  return email;
+}
 
 export function SettingsMenu() {
   const { theme, setTheme } = useTheme();
-  const [confirmReset, setConfirmReset] = useState(false);
+  const router = useRouter();
+  const data = useAppData();
+  const email = useUserEmail();
+  const [orgOpen, setOrgOpen] = useState(false);
+
+  const signOut = async () => {
+    try {
+      await appActions.signOut();
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      toast.error(actionErrorMessage(error));
+    }
+  };
 
   return (
     <>
@@ -37,10 +57,20 @@ export function SettingsMenu() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
             <Settings2 aria-hidden />
-            Impostazioni
+            <span className="truncate">{email ?? "Impostazioni"}</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="w-56">
+        <DropdownMenuContent side="top" align="start" className="w-60">
+          {email && (
+            <>
+              <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{email}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem disabled={!data} onSelect={() => setOrgOpen(true)}>
+            <Building2 aria-hidden /> Organizzazione
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuLabel>Tema</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
             <DropdownMenuRadioItem value="light">
@@ -54,35 +84,13 @@ export function SettingsMenu() {
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={() => setConfirmReset(true)}>
-            <RotateCcw aria-hidden /> Ripristina dati demo
+          <DropdownMenuItem onSelect={signOut}>
+            <LogOut aria-hidden /> Esci
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Ripristinare i dati dimostrativi?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tutti i controlli e le evidenze salvati in questo browser verranno sostituiti con il
-              dataset demo iniziale. L&apos;operazione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                resetToDemoData();
-                toast.success("Dati demo ripristinati");
-              }}
-            >
-              Ripristina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {data && <OrganizationDialog open={orgOpen} onOpenChange={setOrgOpen} organization={data.organization} />}
     </>
   );
 }

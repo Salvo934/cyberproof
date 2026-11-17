@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { FileText, Loader2, Paperclip, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { FormField, fieldAria } from "@/components/common/form-field";
 import { Button } from "@/components/ui/button";
@@ -17,19 +18,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   EVIDENCE_LIMITS,
-  createEvidence,
   emptyEvidenceInput,
   evidenceToInput,
   normalizeEvidenceInput,
-  updateEvidence,
   validateEvidenceInput,
   type EvidenceFieldErrors,
   type EvidenceInput,
 } from "@/lib/domain/evidences";
 import { EVIDENCE_DOCUMENT_TYPE_LABEL } from "@/lib/models/labels";
 import type { Evidence, EvidenceDocumentType, SecurityControl } from "@/lib/models/types";
-import { updateAppData } from "@/lib/store/app-store";
-import { SecureUploadNotice } from "./secure-upload-notice";
+import {
+  ACCEPT_ATTRIBUTE,
+  EVIDENCE_UPLOAD_LIMITS,
+  formatFileSize,
+  validateEvidenceFile,
+} from "@/lib/persistence/evidence-file-storage";
+import { actionErrorMessage, appActions } from "@/lib/store/app-store";
 
 const DOCUMENT_TYPES = Object.keys(EVIDENCE_DOCUMENT_TYPE_LABEL) as EvidenceDocumentType[];
 
@@ -53,17 +57,32 @@ export function EvidenceFormDialog(props: EvidenceFormDialogProps) {
 
 function EvidenceForm({ onOpenChange, control, evidence }: EvidenceFormDialogProps) {
   const isEdit = Boolean(evidence);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [values, setValues] = useState<EvidenceInput>(() =>
     evidence ? evidenceToInput(evidence) : emptyEvidenceInput(control.owner),
   );
   const [errors, setErrors] = useState<EvidenceFieldErrors>({});
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [removeExisting, setRemoveExisting] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const currentFile = evidence?.file && !removeExisting ? evidence.file : null;
 
   const set = <K extends keyof EvidenceInput>(key: K, value: EvidenceInput[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    const invalid = validateEvidenceFile(file);
+    setFileError(invalid ?? null);
+    setNewFile(invalid ? null : file);
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const input = normalizeEvidenceInput(values);
     const validation = validateEvidenceInput(input);
@@ -71,14 +90,26 @@ function EvidenceForm({ onOpenChange, control, evidence }: EvidenceFormDialogPro
       setErrors(validation);
       return;
     }
-    if (evidence) {
-      updateAppData((d) => updateEvidence(d, evidence.id, input));
-      toast.success("Evidenza aggiornata");
-    } else {
-      updateAppData((d) => createEvidence(d, control.id, input));
-      toast.success("Evidenza registrata");
+    setPending(true);
+    try {
+      if (evidence) {
+        const fileChange = newFile
+          ? ({ kind: "replace", file: newFile } as const)
+          : removeExisting
+            ? ({ kind: "remove" } as const)
+            : ({ kind: "keep" } as const);
+        await appActions.updateEvidence(evidence, input, fileChange);
+        toast.success("Evidenza aggiornata");
+      } else {
+        await appActions.createEvidence(control.id, input, newFile);
+        toast.success(newFile ? "Evidenza registrata e documento archiviato" : "Evidenza registrata");
+      }
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(actionErrorMessage(error));
+    } finally {
+      setPending(false);
     }
-    onOpenChange(false);
   };
 
   return (
@@ -87,7 +118,6 @@ function EvidenceForm({ onOpenChange, control, evidence }: EvidenceFormDialogPro
         <DialogTitle>{isEdit ? "Modifica evidenza" : "Registra evidenza"}</DialogTitle>
         <DialogDescription>
           Per il controllo <span className="font-mono text-xs">{control.code}</span> – {control.name}.
-          Non inserire dati personali o informazioni riservate nei campi di testo.
         </DialogDescription>
       </DialogHeader>
 
@@ -137,18 +167,47 @@ function EvidenceForm({ onOpenChange, control, evidence }: EvidenceFormDialogPro
       </div>
 
       <FormField id="ev-owner" label="Responsabile" required error={errors.owner}>
-        <Input
-          {...fieldAria("ev-owner", errors.owner)}
-          value={values.owner}
-          onChange={(e) => set("owner", e.target.value)}
-        />
+        <Input {...fieldAria("ev-owner", errors.owner)} value={values.owner} onChange={(e) => set("owner", e.target.value)} />
       </FormField>
+
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">Documento</p>
+        {newFile ? (
+          <FileRow name={newFile.name} meta={`${formatFileSize(newFile.size)} · verrà archiviato al salvataggio`} onRemove={() => setNewFile(null)} />
+        ) : currentFile ? (
+          <FileRow
+            name={currentFile.name}
+            meta={`${formatFileSize(currentFile.sizeBytes)} · archiviato`}
+            onRemove={() => setRemoveExisting(true)}
+          />
+        ) : null}
+        <input
+          ref={fileInput}
+          id="ev-file"
+          type="file"
+          accept={ACCEPT_ATTRIBUTE}
+          className="sr-only"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
+          <Paperclip aria-hidden />
+          {newFile || currentFile ? "Sostituisci file" : "Allega file"}
+        </Button>
+        {fileError ? (
+          <p className="text-xs text-destructive">{fileError}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Facoltativo. {Object.values(EVIDENCE_UPLOAD_LIMITS.allowedMimeTypes).join(", ")}, max 20 MB. Archiviato in
+            uno spazio privato accessibile solo alla tua organizzazione. Evita documenti con dati personali non necessari.
+          </p>
+        )}
+      </div>
 
       <FormField
         id="ev-reference"
         label="Riferimento al documento"
         error={errors.referenceLocation}
-        hint="Dove è conservato il documento, es. percorso nel repository documentale. Facoltativo."
+        hint="In alternativa o in aggiunta al file: dove è conservato l'originale. Facoltativo."
       >
         <Input
           {...fieldAria("ev-reference", errors.referenceLocation)}
@@ -159,23 +218,34 @@ function EvidenceForm({ onOpenChange, control, evidence }: EvidenceFormDialogPro
         />
       </FormField>
 
-      <SecureUploadNotice />
-
       <FormField id="ev-notes" label="Note" error={errors.notes}>
-        <Textarea
-          {...fieldAria("ev-notes", errors.notes)}
-          rows={2}
-          value={values.notes}
-          onChange={(e) => set("notes", e.target.value)}
-        />
+        <Textarea {...fieldAria("ev-notes", errors.notes)} rows={2} value={values.notes} onChange={(e) => set("notes", e.target.value)} />
       </FormField>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
           Annulla
         </Button>
-        <Button type="submit">{isEdit ? "Salva modifiche" : "Registra evidenza"}</Button>
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2 className="animate-spin" aria-hidden />}
+          {pending && newFile ? "Caricamento…" : isEdit ? "Salva modifiche" : "Registra evidenza"}
+        </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function FileRow({ name, meta, onRemove }: { name: string; meta: string; onRemove: () => void }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+      <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm">{name}</p>
+        <p className="text-xs text-muted-foreground">{meta}</p>
+      </div>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label={`Rimuovi ${name}`} onClick={onRemove}>
+        <X aria-hidden />
+      </Button>
+    </div>
   );
 }

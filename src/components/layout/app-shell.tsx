@@ -1,6 +1,6 @@
 "use client";
 
-import { HardDrive, Menu } from "lucide-react";
+import { Lock, Menu } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Brand } from "./brand";
+import { DataGate } from "./data-gate";
 import { OrganizationCard } from "./organization-card";
 import { SettingsMenu } from "./settings-menu";
 import { SidebarNav } from "./sidebar-nav";
@@ -28,8 +29,8 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
       <SidebarNav onNavigate={onNavigate} />
       <div className="mt-auto space-y-2">
         <p className="flex items-start gap-1.5 px-2 text-[11px] leading-4 text-muted-foreground">
-          <HardDrive className="mt-0.5 size-3 shrink-0" aria-hidden />
-          Dati salvati solo in questo browser. Nessun documento viene archiviato.
+          <Lock className="mt-0.5 size-3 shrink-0" aria-hidden />
+          Dati e documenti visibili solo alla tua organizzazione.
         </p>
         <SettingsMenu />
       </div>
@@ -65,7 +66,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Brand />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
+          <DataGate>{children}</DataGate>
+        </main>
       </div>
     </div>
   );

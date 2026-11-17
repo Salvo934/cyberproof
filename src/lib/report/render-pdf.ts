@@ -11,6 +11,7 @@ import {
   NIS2_CLASSIFICATION_LABEL,
   type Tone,
 } from "@/lib/models/labels";
+import { formatFileSize } from "@/lib/persistence/evidence-file-storage";
 import { REPORT_DISCLAIMER, type ReportModel } from "./report-model";
 
 /** Rendering del report in PDF (A4, unità in mm). Nessuna logica applicativa qui. */
@@ -178,12 +179,12 @@ export function renderReportPdf(model: ReportModel): jsPDF {
   // Intestazione
   w.text("CYBERPROOF", { size: 8, bold: true, color: COLOR.muted, gap: 1 });
   w.text("Report di supporto documentale", { size: 18, bold: true, gap: 3 });
-  w.text(organization.isDemo ? `${organization.name} (organizzazione dimostrativa, dati fittizi)` : organization.name, {
+  w.text(organization.name, {
     size: 11,
     bold: true,
     gap: 1,
   });
-  w.text(`Settore: ${organization.sector}`, { color: COLOR.muted, gap: 0.5 });
+  if (organization.sector) w.text(`Settore: ${organization.sector}`, { color: COLOR.muted, gap: 0.5 });
   w.text(`Classificazione NIS2 dichiarata: ${NIS2_CLASSIFICATION_LABEL[organization.nis2Classification]}`, {
     color: COLOR.muted,
     gap: 0.5,
@@ -236,7 +237,7 @@ export function renderReportPdf(model: ReportModel): jsPDF {
     w.text("Nessuna evidenza registrata.", { color: COLOR.muted });
   } else {
     w.table(
-      ["Controllo", "Evidenza", "Tipologia", "Data raccolta", "Responsabile", "Riferimento al documento"],
+      ["Controllo", "Evidenza", "Tipologia", "Data raccolta", "Responsabile", "Documento"],
       withEvidence.flatMap(({ control, evidences }) =>
         evidences.map((e) => [
           pdfText(control.code),
@@ -244,7 +245,16 @@ export function renderReportPdf(model: ReportModel): jsPDF {
           pdfText(EVIDENCE_DOCUMENT_TYPE_LABEL[e.documentType]),
           pdfText(formatDate(e.collectedAt)),
           pdfText(e.owner),
-          pdfText(e.reference?.location ?? "Non indicato"),
+          pdfText(
+            [
+              e.file
+                ? `Archiviato: ${e.file.name} (${formatFileSize(e.file.sizeBytes)})\nSHA-256: ${e.file.sha256.slice(0, 16)}...`
+                : null,
+              e.reference ? `Rif.: ${e.reference.location}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n") || "Non indicato",
+          ),
         ]),
       ),
       { 0: { cellWidth: 20, font: "courier", fontSize: 7 }, 1: { cellWidth: 48 }, 5: { cellWidth: 42, fontSize: 7 } },
@@ -258,7 +268,7 @@ export function renderReportPdf(model: ReportModel): jsPDF {
     });
   }
   w.text(
-    "Le evidenze sono registrate come riferimenti: i documenti originali sono conservati dall'organizzazione e non sono archiviati in CyberProof.",
+    "I documenti indicati come archiviati sono conservati nello spazio privato dell'organizzazione su CyberProof; l'impronta SHA-256 (troncata) consente di verificarne l'integrità. Gli altri sono riferimenti a documenti conservati dall'organizzazione.",
     { size: 7.5, color: COLOR.muted },
   );
 

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { LoadDemoButton } from "@/components/common/load-demo-button";
 import { LoadingBlock } from "@/components/common/loading-block";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   REVIEW_INTERVAL_MONTHS,
@@ -59,12 +61,18 @@ export function DashboardOverview() {
   if (metrics.totalControls === 0) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Il registro è vuoto.{" "}
-          <Link href="/controls" className="font-medium text-foreground underline underline-offset-4">
-            Aggiungi il primo controllo
-          </Link>
-          .
+        <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+          <p className="text-sm font-medium">Il registro è vuoto</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Aggiungi i controlli di sicurezza della tua organizzazione, oppure carica 10 controlli di esempio per
+            esplorare l&apos;applicazione.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button asChild size="sm">
+              <Link href="/controls">Vai al registro</Link>
+            </Button>
+            <LoadDemoButton />
+          </div>
         </CardContent>
       </Card>
     );

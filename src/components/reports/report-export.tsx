@@ -17,7 +17,7 @@ const SECTIONS = [
   "Nota sulla natura documentale del report",
   "Riepilogo dei controlli per stato",
   "Stato, implementazione dichiarata e ultima verifica di ciascun controllo",
-  "Evidenze registrate con riferimento al documento",
+  "Evidenze registrate, con documenti archiviati e riferimenti",
   "Attività ancora aperte",
   "Riferimenti normativi associati",
 ];
@@ -55,8 +55,7 @@ export function ReportExport() {
         <CardHeader>
           <CardTitle>Report di supporto documentale</CardTitle>
           <CardDescription>
-            {preview.organization.name}
-            {preview.organization.isDemo && " (dati dimostrativi)"} ·{" "}
+            {preview.organization.name} ·{" "}
             {NIS2_CLASSIFICATION_LABEL[preview.organization.nis2Classification]} (dichiarata)
           </CardDescription>
         </CardHeader>

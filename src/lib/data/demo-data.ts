@@ -1,4 +1,4 @@
-import type { AppData, Evidence, Organization, SecurityControl } from "@/lib/models/types";
+import type { Evidence, SecurityControl } from "@/lib/models/types";
 
 /**
  * Dati dimostrativi, interamente fittizi.
@@ -8,19 +8,12 @@ import type { AppData, Evidence, Organization, SecurityControl } from "@/lib/mod
  * l'area della Direttiva (UE) 2022/2555 e del D.Lgs. 138/2024 a cui il
  * controllo è ricondotto in modo indicativo, e vanno sempre verificati sulle
  * fonti ufficiali.
+ *
+ * Gli ID qui sotto sono solo chiavi interne del modello: al caricamento
+ * vengono sostituiti da UUID nuovi, mantenendo i collegamenti evidenza→controllo.
  */
 
-const SEED_TIMESTAMP = "2026-11-01T09:00:00.000Z";
-
-export const DEMO_ORGANIZATION: Organization = {
-  id: "org_demo",
-  name: "Azienda Demo S.r.l.",
-  sector: "Trasporti e logistica (esempio)",
-  nis2Classification: "importante",
-  isDemo: true,
-};
-
-type SeedControl = Omit<SecurityControl, "createdAt" | "updatedAt">;
+export type SeedControl = Omit<SecurityControl, "createdAt" | "updatedAt">;
 
 const seedControls: SeedControl[] = [
   {
@@ -235,7 +228,7 @@ const seedControls: SeedControl[] = [
   },
 ];
 
-type SeedEvidence = Omit<Evidence, "createdAt" | "updatedAt">;
+export type SeedEvidence = Omit<Evidence, "createdAt" | "updatedAt" | "file">;
 
 const DEMO_REPO = "Repository documentale demo";
 
@@ -319,22 +312,28 @@ const seedEvidences: SeedEvidence[] = [
   },
 ];
 
-/** Restituisce una copia nuova e indipendente del dataset dimostrativo. */
-export function createDemoData(): AppData {
+export interface DemoDataset {
+  controls: SeedControl[];
+  evidences: SeedEvidence[];
+}
+
+/**
+ * Restituisce una copia indipendente del dataset dimostrativo con UUID nuovi
+ * e collegamenti evidenza→controllo coerenti.
+ */
+export function createDemoDataset(newId: () => string = () => crypto.randomUUID()): DemoDataset {
+  const idMap = new Map(seedControls.map((c) => [c.id, newId()]));
   return {
-    schemaVersion: 1,
-    organization: { ...DEMO_ORGANIZATION },
     controls: seedControls.map((c) => ({
       ...c,
+      id: idMap.get(c.id)!,
       regulatoryReferences: c.regulatoryReferences.map((r) => ({ ...r })),
-      createdAt: SEED_TIMESTAMP,
-      updatedAt: SEED_TIMESTAMP,
     })),
     evidences: seedEvidences.map((e) => ({
       ...e,
+      id: newId(),
+      controlId: idMap.get(e.controlId)!,
       reference: e.reference ? { ...e.reference } : null,
-      createdAt: SEED_TIMESTAMP,
-      updatedAt: SEED_TIMESTAMP,
     })),
   };
 }

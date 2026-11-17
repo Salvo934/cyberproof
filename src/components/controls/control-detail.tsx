@@ -13,7 +13,6 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { updateControlStatus } from "@/lib/domain/controls";
 import { getControlById, getEvidencesForControl } from "@/lib/domain/selectors";
 import { formatDate } from "@/lib/format";
 import {
@@ -23,7 +22,7 @@ import {
   REGULATORY_SOURCE_LABEL,
 } from "@/lib/models/labels";
 import type { ControlStatus } from "@/lib/models/types";
-import { updateAppData, useAppData } from "@/lib/store/app-store";
+import { actionErrorMessage, appActions, useAppData } from "@/lib/store/app-store";
 import { ControlFormDialog } from "./control-form-dialog";
 import { DeleteControlDialog } from "./delete-control-dialog";
 
@@ -99,10 +98,14 @@ export function ControlDetail({ controlId }: { controlId: string }) {
               <Field label="Stato della documentazione">
                 <Select
                   value={control.status}
-                  onValueChange={(value) => {
+                  onValueChange={async (value) => {
                     const status = value as ControlStatus;
-                    updateAppData((d) => updateControlStatus(d, control.id, status));
-                    toast.success(`Stato aggiornato: ${CONTROL_STATUS_META[status].label}`);
+                    try {
+                      await appActions.updateControlStatus(control.id, status);
+                      toast.success(`Stato aggiornato: ${CONTROL_STATUS_META[status].label}`);
+                    } catch (error) {
+                      toast.error(actionErrorMessage(error));
+                    }
                   }}
                 >
                   <SelectTrigger size="sm" aria-label="Stato della documentazione" className="min-w-40">

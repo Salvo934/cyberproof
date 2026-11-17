@@ -19,14 +19,7 @@ export function OrganizationCard() {
   const { organization } = data;
   return (
     <div className="px-2 py-1">
-      <div className="flex items-center gap-1.5">
-        <p className="truncate text-sm font-medium">{organization.name}</p>
-        {organization.isDemo && (
-          <span className="rounded border px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Demo
-          </span>
-        )}
-      </div>
+      <p className="truncate text-sm font-medium">{organization.name}</p>
       <p className="truncate text-xs text-muted-foreground">
         {NIS2_CLASSIFICATION_LABEL[organization.nis2Classification]} (dichiarata)
       </p>
